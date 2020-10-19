@@ -1,0 +1,12 @@
+*/.DS_Store
+.vscode/
+.idea/*
+*.lock
+*.a
+*.tar.gz
+*.docx
+.DS_Store
+*/target
+*.so
+build
+.gradle
