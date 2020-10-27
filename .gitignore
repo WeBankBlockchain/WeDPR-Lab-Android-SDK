@@ -1,12 +1,12 @@
 */.DS_Store
-.vscode/
-.idea/*
+**/.vscode/
+**/.idea/*
 *.lock
 *.a
 *.tar.gz
 *.docx
 .DS_Store
-*/target
+**/target
 *.so
 build
 .gradle
