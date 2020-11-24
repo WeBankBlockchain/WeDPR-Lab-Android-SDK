@@ -35,9 +35,11 @@ dependencies {
     // implementation 'androidx.cardview:cardview:1.0.0-alpha3'
     implementation 'com.android.support:appcompat-v7:28.0.0-alpha3'
     implementation 'com.android.support.constraint:constraint-layout:2.0.1'
+//    implementation 'com.google.protobuf:protobuf-lite:3.0.0'
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.9.1'
 
 }
 
