@@ -10,16 +10,15 @@ import com.webank.wedpr.common.Utils;
 import com.webank.wedpr.common.WedprException;
 import com.webank.wedpr.crypto.CryptoClient;
 import com.webank.wedpr.crypto.CryptoResult;
-import com.webank.wedpr.selectivedisclosure.IssuerResult;
-import com.webank.wedpr.selectivedisclosure.PredicateType;
-import com.webank.wedpr.selectivedisclosure.SelectiveDisclosureClient;
-import com.webank.wedpr.selectivedisclosure.UserResult;
-import com.webank.wedpr.selectivedisclosure.VerifierResult;
-import com.webank.wedpr.selectivedisclosure.proto.Predicate;
-import com.webank.wedpr.selectivedisclosure.proto.RevealedAttributeInfo;
-import com.webank.wedpr.selectivedisclosure.proto.VerificationRule;
+import com.webank.wedpr.scd.IssuerResult;
+import com.webank.wedpr.scd.PredicateType;
+import com.webank.wedpr.scd.ScdClient;
+import com.webank.wedpr.scd.UserResult;
+import com.webank.wedpr.scd.VerifierResult;
+import com.webank.wedpr.scd.proto.Predicate;
 import com.webank.wedpr.vcl.VclClient;
 import com.webank.wedpr.vcl.VclResult;
+import com.webank.wedpr.scd.proto.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,7 +34,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         CryptoClient cryptoClient = new CryptoClient();
         VclClient vclClient = new VclClient();
-        SelectiveDisclosureClient selectiveDisclosureClient = new SelectiveDisclosureClient();
+        ScdClient scdClient = new ScdClient();
         CryptoResult cryptoResult = null;
         try {
             cryptoDemo(cryptoClient);
@@ -44,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
             vclDemo(vclClient, 1, 2, 3);
             vclDemo(vclClient, 3, 4, 5);
             vclDemo(vclClient, -1, 4, 3);
-            SelectiveDisclosureDemo(selectiveDisclosureClient);
+            ScdDemo(scdClient);
         } catch (WedprException e) {
             e.printStackTrace();
         }
@@ -157,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
         System.out.println("decryptedData = " + decryptedData);
     }
 
-    private static void SelectiveDisclosureDemo(SelectiveDisclosureClient selectiveDisclosureClient)
+    private static void ScdDemo(ScdClient scdClient)
             throws WedprException, InvalidProtocolBufferException {
         System.out.println("\n*******\nSELECTIVE DISCLOSURE RUN\n*******");
 
@@ -167,16 +166,16 @@ public class MainActivity extends AppCompatActivity {
         attributes.add("age");
         attributes.add("gender");
         attributes.add("time");
-        String encodeAttributeTemplate = selectiveDisclosureClient.makeAttributeTemplate(attributes);
+        String encodeAttributeTemplate = scdClient.issuerMakeCertificateSchema(attributes);
         System.out.println("Encoded attributeTemplate = " + encodeAttributeTemplate);
 
-        IssuerResult issuerResult = selectiveDisclosureClient.makeCredentialTemplate(encodeAttributeTemplate);
+        IssuerResult issuerResult =
+                scdClient.issuerMakeCertificateTemplate(encodeAttributeTemplate);
 
-        String credentialTemplate = issuerResult.credentialTemplate;
-        String templateSecretKey = issuerResult.templateSecretKey;
+        String credentialTemplate = issuerResult.certificateTemplate;
+        String templateSecretKey = issuerResult.templatePrivateKey;
         System.out.println("Encoded credentialTemplate = " + credentialTemplate);
         System.out.println("Encoded templateSecretKey = " + templateSecretKey);
-
 
         // User fill template
         Map<String, String> maps = new HashMap<String, String>();
@@ -184,58 +183,90 @@ public class MainActivity extends AppCompatActivity {
         maps.put("age", "18");
         maps.put("gender", "1");
         maps.put("time", "12345");
-        String credentialInfo = selectiveDisclosureClient.makeCredentialInfo(maps);
-        UserResult userResult =  selectiveDisclosureClient.makeCredential(credentialInfo, credentialTemplate);
+        String credentialInfo = scdClient.userMakeAttributeDict(maps);
+        UserResult userResult =
+                scdClient.userFillCertificate(credentialInfo, credentialTemplate);
 
-        String signatureRequest = userResult.credentialSignatureRequest;
-        String masterSecret = userResult.masterSecret;
-        String credentialSecretsBlindingFactors = userResult.credentialSecretsBlindingFactors;
+        String signatureRequest = userResult.signCertificateRequest;
+        String userPrivateKey = userResult.userPrivateKey;
+        String credentialSecretsBlindingFactors = userResult.certificateSecretsBlindingFactors;
         String userNonce = userResult.userNonce;
         System.out.println("Encoded signatureRequest = " + signatureRequest);
-        System.out.println("Encoded masterSecret = " + masterSecret);
-        System.out.println("Encoded credentialSecretsBlindingFactors = " + credentialSecretsBlindingFactors);
+        System.out.println("Encoded userPrivateKey = " + userPrivateKey);
+        System.out.println(
+                "Encoded credentialSecretsBlindingFactors = " + credentialSecretsBlindingFactors);
         System.out.println("Encoded userNonce = " + userNonce);
 
-
         // Issuer sign user's request to generate credential
-        issuerResult = selectiveDisclosureClient.signCredential(credentialTemplate, templateSecretKey, signatureRequest, "id1", userNonce);
+        issuerResult =
+                scdClient.issuerSignCertificate(
+                        credentialTemplate, templateSecretKey, signatureRequest, "id1", userNonce);
 
-        String credentialSignature = issuerResult.credentialSignature;
+        String credentialSignature = issuerResult.certificateSignature;
         String issuerNonce = issuerResult.issuerNonce;
         System.out.println("Encoded credentialSignature = " + credentialSignature);
         System.out.println("Encoded issuerNonce = " + issuerNonce);
 
-
         // User generate new credentialSignature
-        userResult = selectiveDisclosureClient.blindCredentialSignature(credentialSignature, credentialInfo, credentialTemplate, masterSecret, credentialSecretsBlindingFactors, issuerNonce);
+        userResult =
+                scdClient.userBlindCertificateSignature(
+                        credentialSignature,
+                        credentialInfo,
+                        credentialTemplate,
+                        userPrivateKey,
+                        credentialSecretsBlindingFactors,
+                        issuerNonce);
 
-        String credentialSignatureNew = userResult.credentialSignature;
+        String credentialSignatureNew = userResult.certificateSignature;
         System.out.println("Encoded credentialSignatureNew = " + credentialSignatureNew);
 
         // Verifier set verification rules
-        VerificationRule verificationRule = VerificationRule.getDefaultInstance();
-        Predicate predicate = Predicate.newBuilder().setAttributeName("age").setPredicateType(PredicateType.GT.name()).setValue(17).build();
-        verificationRule = verificationRule.toBuilder().addPredicateAttribute(predicate).build();
+        VerificationRuleSet verificationRuleSet = VerificationRuleSet.getDefaultInstance();
+        Predicate predicate =
+                Predicate.newBuilder()
+                        .setAttributeName("age")
+                        .setPredicateType(PredicateType.GT.name())
+                        .setPredicateValue(17)
+                        .build();
+        verificationRuleSet = verificationRuleSet.toBuilder().addAttributePredicate(predicate).build();
 
-        predicate = Predicate.newBuilder().setAttributeName("gender").setPredicateType(PredicateType.EQ.name()).setValue(1).build();
-        verificationRule = verificationRule.toBuilder().addPredicateAttribute(predicate).build();
+        predicate =
+                Predicate.newBuilder()
+                        .setAttributeName("gender")
+                        .setPredicateType(PredicateType.EQ.name())
+                        .setPredicateValue(1)
+                        .build();
+        verificationRuleSet = verificationRuleSet.toBuilder().addAttributePredicate(predicate).build();
 
-        String verificationRuleStr = selectiveDisclosureClient.protoToEncodedString(verificationRule);
+        String verificationRuleStr =
+                ScdClient.protoToEncodedString(verificationRuleSet);
         System.out.println("Encoded verificationRuleStr = " + verificationRuleStr);
 
         // User prove by verification rules
-        userResult = selectiveDisclosureClient.proveCredentialInfo(verificationRuleStr, credentialSignatureNew, credentialInfo, credentialTemplate, masterSecret);
+        String verificationNonce =
+                scdClient.verifierGetVerificationNonce().verificationNonce;
+        userResult =
+                scdClient.userProveSelectiveDisclosure(
+                        verificationRuleStr,
+                        credentialSignatureNew,
+                        credentialInfo,
+                        credentialTemplate,
+                        userPrivateKey,
+                        verificationNonce);
 
-        String verificationRequest = userResult.verificationRequest;
+        String verificationRequest = userResult.verifyRequest;
         System.out.println("Encoded verificationRequest = " + verificationRequest);
 
         // Verifier verify proof
-        VerifierResult verifierResult = selectiveDisclosureClient.verifyProof(verificationRuleStr, verificationRequest);
-        System.out.println("result = " + verifierResult.result);
+        VerifierResult verifierResult =
+                scdClient.verifierVerifySelectiveDisclosure(verificationRuleStr, verificationRequest);
+        System.out.println("result = " + verifierResult.boolResult);
 
-        verifierResult = selectiveDisclosureClient.getRevealedAttrsFromVerificationRequest(verificationRequest);
-        String revealedAttributeInfo = verifierResult.revealedAttributeInfo;
-        RevealedAttributeInfo revealedAttributeInfoPb = RevealedAttributeInfo.parseFrom(Utils.stringToBytes(revealedAttributeInfo));
-        System.out.println("revealedAttributeInfo =" + revealedAttributeInfoPb);
+        verifierResult =
+                scdClient.verifierGetRevealedAttrsFromVerifyRequest(verificationRequest);
+        String revealedAttributeDict = verifierResult.revealedAttributeDict;
+        AttributeDict attributeDict =
+                AttributeDict.parseFrom(Utils.stringToBytes(revealedAttributeDict));
+        System.out.println("revealedAttributeDict =" + attributeDict);
     }
 }
