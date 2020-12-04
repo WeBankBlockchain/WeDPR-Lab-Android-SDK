@@ -5,23 +5,18 @@ package com.webank.wedprdemo;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.webank.wedpr.common.Utils;
-import com.webank.wedpr.common.WedprException;
 import com.webank.wedpr.crypto.CryptoClient;
 import com.webank.wedpr.crypto.CryptoResult;
-import com.webank.wedpr.scd.IssuerResult;
-import com.webank.wedpr.scd.PredicateType;
-import com.webank.wedpr.scd.ScdClient;
-import com.webank.wedpr.scd.UserResult;
-import com.webank.wedpr.scd.VerifierResult;
+import com.webank.wedpr.scd.*;
 import com.webank.wedpr.scd.proto.Predicate;
 import com.webank.wedpr.vcl.VclClient;
 import com.webank.wedpr.vcl.VclResult;
 import com.webank.wedpr.scd.proto.*;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 // TODO: Rename the package name to demo.
@@ -32,29 +27,61 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        CryptoClient cryptoClient = new CryptoClient();
-        VclClient vclClient = new VclClient();
-        ScdClient scdClient = new ScdClient();
-        CryptoResult cryptoResult = null;
         try {
+            // Crypto demo.
+            CryptoClient cryptoClient = new CryptoClient();
             cryptoDemo(cryptoClient);
+
+            // VCL demo.
+            VclClient vclClient = new VclClient();
             vclDemo(vclClient, 2, 2, 4);
             vclDemo(vclClient, 3, 4, 12);
             vclDemo(vclClient, 1, 2, 3);
             vclDemo(vclClient, 3, 4, 5);
             vclDemo(vclClient, -1, 4, 3);
-            ScdDemo(scdClient);
-        } catch (WedprException e) {
-            e.printStackTrace();
-        }
-        catch (InvalidProtocolBufferException e) {
+
+            // SCD demo.
+            IssuerClient issuerClient = new IssuerClient();
+            UserClient userClient = new UserClient();
+            VerifierClient verifierClient = new VerifierClient();
+            scdDemo(issuerClient, userClient, verifierClient);
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    private static void cryptoDemo(CryptoClient cryptoClient)
+        throws Exception {
+        System.out.println("\n*******\nCRYPTO DEMO RUN\n*******");
+
+        CryptoResult cryptoResult = cryptoClient.secp256k1GenKeyPair();
+        String publicKey = cryptoResult.publicKey;
+        String privateKey = cryptoResult.privateKey;
+        System.out.println("public key = " + publicKey);
+        System.out.println("private key = " + privateKey);
+
+        // Base64 encoding for "WeDPR Demo", which is currently required to pass bytes input to API.
+        // TODO: Allow non-encoded UTF8 input.
+        String message = "V2VEUFIgRGVtbw==";
+        String messageHash = cryptoClient.keccak256Hash(message).hash;
+        System.out.println("messageHash = " + messageHash);
+
+        String signature = cryptoClient.secp256k1Sign(privateKey, messageHash).signature;
+        System.out.println("signature = " + signature);
+
+        boolean result = cryptoClient.secp256k1Verify(publicKey, messageHash, signature).booleanResult;
+        System.out.println("signature verify result = " + result);
+
+        String encryptedData = cryptoClient.secp256k1EciesEncrypt(publicKey, messageHash).encryptedData;
+        System.out.println("encryptedData = " + encryptedData);
+
+        String decryptedData = cryptoClient.secp256k1EciesDecrypt(privateKey, encryptedData).decryptedData;
+        System.out.println("decryptedData = " + decryptedData);
+    }
+
     private static void vclDemo(VclClient vclClient, long c1Value, long c2Value, long c3Value)
-            throws WedprException {
-        System.out.println("\n*******\nVCL PROOF RUN\n*******");
+            throws Exception {
+        System.out.println("\n*******\nVCL DEMO RUN\n*******");
         System.out.println(
                 "c1_value = " + c1Value + ", c2_value = " + c2Value + ", c3_value = " + c3Value + "\n");
 
@@ -127,146 +154,122 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static void cryptoDemo(CryptoClient cryptoClient)
-            throws WedprException {
-        System.out.println("\n*******\nCRYPTO TOOL RUN\n*******");
+    private static final String NAME = "name";
+    private static final String AGE = "age";
+    private static final String GENDER = "gender";
+    private static final String ISSUE_TIME = "issue_time";
+    private static final String DEFAULT_USER_ID = "default_user_id";
 
-        CryptoResult cryptoResult = cryptoClient.secp256k1GenKeyPair();
-        String publicKey = cryptoResult.publicKey;
-        String privateKey = cryptoResult.privateKey;
-        System.out.println("public key = " + publicKey);
-        System.out.println("private key = " + privateKey);
+    public static void scdDemo(
+        IssuerClient issuerClient, UserClient userClient, VerifierClient verifierClient)
+        throws Exception {
+        System.out.println("\n*******\nSCD DEMO RUN\n*******");
 
-        // Base64 encoding for "WeDPR Demo", which is currently required to pass bytes input to API.
-        // TODO: Allow non-encoded UTF8 input.
-        String message = "V2VEUFIgRGVtbw==";
-        String messageHash = cryptoClient.keccak256Hash(message).hash;
-        System.out.println("messageHash = " + messageHash);
+        // An issuer defines the certificate schema and generates the certificate template.
+        List<String> schema = Arrays.asList(NAME, AGE, GENDER, ISSUE_TIME);
+        System.out.println("Encoded schema = " + schema);
 
-        String signature = cryptoClient.secp256k1Sign(privateKey, messageHash).signature;
-        System.out.println("signature = " + signature);
+        IssuerResult issuerResult = issuerClient.makeCertificateTemplate(schema);
 
-        boolean result = cryptoClient.secp256k1Verify(publicKey, messageHash, signature).booleanResult;
-        System.out.println("signature verify result = " + result);
+        String certificateTemplate = issuerResult.certificateTemplate;
+        String templatePrivateKey = issuerResult.templatePrivateKey;
+        System.out.println("Encoded certificateTemplate = " + certificateTemplate);
+        System.out.println("Encoded templatePrivateKey = " + templatePrivateKey);
 
-        String encryptedData = cryptoClient.secp256k1EciesEncrypt(publicKey, messageHash).encryptedData;
-        System.out.println("encryptedData = " + encryptedData);
+        // A user fills the certificate template and prepares a request for the issuer to sign.
+        Map<String, String> certificateDataInput = new HashMap<>();
+        // TODO: Add a utility function to convert any string to a decimal string.
+        // Before this utility function is implemented, the attribute value can only be a decimal
+        // string.
+        certificateDataInput.put(NAME, "123");
+        certificateDataInput.put(AGE, "19");
+        certificateDataInput.put(GENDER, "1");
+        certificateDataInput.put(ISSUE_TIME, "12345");
+        String certificateData = userClient.encodeAttributeDict(certificateDataInput);
+        UserResult userResult = userClient.fillCertificate(certificateData, certificateTemplate);
 
-        String decryptedData = cryptoClient.secp256k1EciesDecrypt(privateKey, encryptedData).decryptedData;
-        System.out.println("decryptedData = " + decryptedData);
-    }
-
-    private static void ScdDemo(ScdClient scdClient)
-            throws WedprException, InvalidProtocolBufferException {
-        System.out.println("\n*******\nSELECTIVE DISCLOSURE RUN\n*******");
-
-        // issuer make template
-        ArrayList<String> attributes = new ArrayList<String>();
-        attributes.add("name");
-        attributes.add("age");
-        attributes.add("gender");
-        attributes.add("time");
-        String encodeAttributeTemplate = scdClient.issuerMakeCertificateSchema(attributes);
-        System.out.println("Encoded attributeTemplate = " + encodeAttributeTemplate);
-
-        IssuerResult issuerResult =
-                scdClient.issuerMakeCertificateTemplate(encodeAttributeTemplate);
-
-        String credentialTemplate = issuerResult.certificateTemplate;
-        String templateSecretKey = issuerResult.templatePrivateKey;
-        System.out.println("Encoded credentialTemplate = " + credentialTemplate);
-        System.out.println("Encoded templateSecretKey = " + templateSecretKey);
-
-        // User fill template
-        Map<String, String> maps = new HashMap<String, String>();
-        maps.put("name", "123");
-        maps.put("age", "18");
-        maps.put("gender", "1");
-        maps.put("time", "12345");
-        String credentialInfo = scdClient.userMakeAttributeDict(maps);
-        UserResult userResult =
-                scdClient.userFillCertificate(credentialInfo, credentialTemplate);
-
-        String signatureRequest = userResult.signCertificateRequest;
+        String signCertificateRequest = userResult.signCertificateRequest;
         String userPrivateKey = userResult.userPrivateKey;
-        String credentialSecretsBlindingFactors = userResult.certificateSecretsBlindingFactors;
+        String certificateSecretsBlindingFactors = userResult.certificateSecretsBlindingFactors;
         String userNonce = userResult.userNonce;
-        System.out.println("Encoded signatureRequest = " + signatureRequest);
+        System.out.println("Encoded signCertificateRequest = " + signCertificateRequest);
         System.out.println("Encoded userPrivateKey = " + userPrivateKey);
         System.out.println(
-                "Encoded credentialSecretsBlindingFactors = " + credentialSecretsBlindingFactors);
+            "Encoded certificateSecretsBlindingFactors = " + certificateSecretsBlindingFactors);
         System.out.println("Encoded userNonce = " + userNonce);
 
-        // Issuer sign user's request to generate credential
+        // The issuer verifies the certificate signing request from the user and signs the certificate.
         issuerResult =
-                scdClient.issuerSignCertificate(
-                        credentialTemplate, templateSecretKey, signatureRequest, "id1", userNonce);
+            issuerClient.signCertificate(
+                certificateTemplate,
+                templatePrivateKey,
+                signCertificateRequest,
+                DEFAULT_USER_ID,
+                userNonce);
 
-        String credentialSignature = issuerResult.certificateSignature;
+        String certificateSignature = issuerResult.certificateSignature;
         String issuerNonce = issuerResult.issuerNonce;
-        System.out.println("Encoded credentialSignature = " + credentialSignature);
+        System.out.println("Encoded certificateSignature = " + certificateSignature);
         System.out.println("Encoded issuerNonce = " + issuerNonce);
 
-        // User generate new credentialSignature
+        // The user blinds the received certificateSignature to prevent the issuer to track the
+        // certificate usage.
         userResult =
-                scdClient.userBlindCertificateSignature(
-                        credentialSignature,
-                        credentialInfo,
-                        credentialTemplate,
-                        userPrivateKey,
-                        credentialSecretsBlindingFactors,
-                        issuerNonce);
+            userClient.blindCertificateSignature(
+                certificateSignature,
+                certificateData,
+                certificateTemplate,
+                userPrivateKey,
+                certificateSecretsBlindingFactors,
+                issuerNonce);
 
-        String credentialSignatureNew = userResult.certificateSignature;
-        System.out.println("Encoded credentialSignatureNew = " + credentialSignatureNew);
+        String blindedCertificateSignature = userResult.certificateSignature;
+        System.out.println("Encoded blindedCertificateSignature = " + blindedCertificateSignature);
 
-        // Verifier set verification rules
-        VerificationRuleSet verificationRuleSet = VerificationRuleSet.getDefaultInstance();
+        // A verifier sets a verification rule to:
+        // Check AGE > 18 and,
+        VerificationRuleSet.Builder verificationRuleSetBuilder = VerificationRuleSet.newBuilder();
         Predicate predicate =
-                Predicate.newBuilder()
-                        .setAttributeName("age")
-                        .setPredicateType(PredicateType.GT.name())
-                        .setPredicateValue(17)
-                        .build();
-        verificationRuleSet = verificationRuleSet.toBuilder().addAttributePredicate(predicate).build();
+            Predicate.newBuilder()
+                .setAttributeName(AGE)
+                .setPredicateType(PredicateType.GT.name())
+                .setPredicateValue(18)
+                .build();
+        verificationRuleSetBuilder.addAttributePredicate(predicate);
+        // Reveal the ISSUE_TIME attribute.
+        verificationRuleSetBuilder.addRevealedAttributeName(ISSUE_TIME);
 
-        predicate =
-                Predicate.newBuilder()
-                        .setAttributeName("gender")
-                        .setPredicateType(PredicateType.EQ.name())
-                        .setPredicateValue(1)
-                        .build();
-        verificationRuleSet = verificationRuleSet.toBuilder().addAttributePredicate(predicate).build();
+        String encodedVerificationRuleSet =
+            verifierClient.protoToEncodedString(verificationRuleSetBuilder.build());
+        System.out.println("Encoded verificationRuleSet = " + encodedVerificationRuleSet);
 
-        String verificationRuleStr =
-                ScdClient.protoToEncodedString(verificationRuleSet);
-        System.out.println("Encoded verificationRuleStr = " + verificationRuleStr);
+        String verificationNonce = verifierClient.getVerificationNonce().verificationNonce;
 
-        // User prove by verification rules
-        String verificationNonce =
-                scdClient.verifierGetVerificationNonce().verificationNonce;
+        // The user proves the signed certificate data satisfying the verification rules and does not
+        // reveal any extra data.
         userResult =
-                scdClient.userProveSelectiveDisclosure(
-                        verificationRuleStr,
-                        credentialSignatureNew,
-                        credentialInfo,
-                        credentialTemplate,
-                        userPrivateKey,
-                        verificationNonce);
+            userClient.proveSelectiveDisclosure(
+                encodedVerificationRuleSet,
+                blindedCertificateSignature,
+                certificateData,
+                certificateTemplate,
+                userPrivateKey,
+                verificationNonce);
 
-        String verificationRequest = userResult.verifyRequest;
-        System.out.println("Encoded verificationRequest = " + verificationRequest);
+        String verifyRequest = userResult.verifyRequest;
+        System.out.println("Encoded verifyRequest = " + verifyRequest);
 
-        // Verifier verify proof
+        // The verifier verifies the required verification rule is satisfied and extracts the required
+        // attribute.
+        // This verification should be done before calling revealedAttributeDict.
         VerifierResult verifierResult =
-                scdClient.verifierVerifySelectiveDisclosure(verificationRuleStr, verificationRequest);
-        System.out.println("result = " + verifierResult.boolResult);
+            verifierClient.verifySelectiveDisclosure(encodedVerificationRuleSet, verifyRequest);
+        System.out.println("Proof verification result = " + verifierResult.boolResult);
 
-        verifierResult =
-                scdClient.verifierGetRevealedAttrsFromVerifyRequest(verificationRequest);
-        String revealedAttributeDict = verifierResult.revealedAttributeDict;
-        AttributeDict attributeDict =
-                AttributeDict.parseFrom(Utils.stringToBytes(revealedAttributeDict));
-        System.out.println("revealedAttributeDict =" + attributeDict);
+        verifierResult = verifierClient.getRevealedAttributes(verifyRequest);
+        String encodedRevealedCertificateData = verifierResult.revealedAttributeDict;
+        AttributeDict revealedCertificateData =
+            AttributeDict.parseFrom(Utils.stringToBytes(encodedRevealedCertificateData));
+        System.out.println("revealedCertificateData =" + revealedCertificateData);
     }
 }
