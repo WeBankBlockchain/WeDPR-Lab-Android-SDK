@@ -10,3 +10,4 @@
 *.so
 build
 .gradle
+local.properties

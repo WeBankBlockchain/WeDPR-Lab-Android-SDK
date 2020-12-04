@@ -11,39 +11,38 @@ public class NativeInterface {
   }
 
   // JNI function section.
-  public static native IssuerResult issuerMakeCertificateTemplate(String attributeTemplate);
+  public static native IssuerResult issuerMakeCertificateTemplate(String schema);
 
   public static native IssuerResult issuerSignCertificate(
-          String credentialTemplate,
-          String templateSecretKey,
-          String credentialRequest,
-          String userId,
-          String nonce);
+      String certificateTemplate,
+      String templatePrivateKey,
+      String signRequest,
+      String userId,
+      String userNonce);
 
   public static native UserResult userFillCertificate(
-          String credentialInfo, String credentialTemplate);
+      String attributeDict, String certificateTemplate);
 
   public static native UserResult userBlindCertificateSignature(
-          String credentialSignature,
-          String credentialInfo,
-          String credentialTemplate,
-          String userPrivateKey,
-          String credentialSecretsBlindingFactors,
-          String nonceCredential);
+      String certificateSignature,
+      String attributeDict,
+      String certificateTemplate,
+      String userPrivateKey,
+      String certificateSecretsBlindingFactors,
+      String issuerNonce);
 
   public static native UserResult userProveSelectiveDisclosure(
-          String verificationPredicateRule,
-          String credentialSignature,
-          String credentialInfo,
-          String credentialTemplate,
-          String userPrivateKey,
-          String verificationNonce);
+      String ruleSet,
+      String certificateSignature,
+      String attributeDict,
+      String certificateTemplate,
+      String userPrivateKey,
+      String verificationNonce);
 
   public static native VerifierResult verifierVerifySelectiveDisclosure(
-          String verificationPredicateRule, String verificationRequest);
+      String ruleSet, String verifyRequest);
 
-  public static native VerifierResult verifierGetRevealedAttrsFromVerifyRequest(
-          String verificationRequest);
+  public static native VerifierResult verifierGetRevealedAttributes(String verifyRequest);
 
   public static native VerifierResult verifierGetVerificationNonce();
 }
