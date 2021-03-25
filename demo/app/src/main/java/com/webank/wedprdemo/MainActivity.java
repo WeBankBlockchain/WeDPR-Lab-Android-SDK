@@ -8,6 +8,8 @@ import android.os.Bundle;
 import com.webank.wedpr.common.Utils;
 import com.webank.wedpr.crypto.CryptoClient;
 import com.webank.wedpr.crypto.CryptoResult;
+import com.webank.wedpr.ktb.hdk.HdkClient;
+import com.webank.wedpr.ktb.hdk.HdkResult;
 import com.webank.wedpr.scd.*;
 import com.webank.wedpr.scd.proto.Predicate;
 import com.webank.wedpr.vcl.VclClient;
@@ -45,6 +47,9 @@ public class MainActivity extends AppCompatActivity {
             UserClient userClient = new UserClient();
             VerifierClient verifierClient = new VerifierClient();
             scdDemo(issuerClient, userClient, verifierClient);
+
+            HdkClient hdkClient = new HdkClient();
+            KtbDemo(hdkClient);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -271,5 +276,29 @@ public class MainActivity extends AppCompatActivity {
         AttributeDict revealedCertificateData =
             AttributeDict.parseFrom(Utils.stringToBytes(encodedRevealedCertificateData));
         System.out.println("revealedCertificateData =" + revealedCertificateData);
+    }
+
+    private static void KtbDemo(HdkClient hdkClient)
+            throws Exception {
+        HdkResult hdkResult = hdkClient.createMnemonicEn(24);
+        String mnemonic = hdkResult.mnemonic;
+        System.out.println("mnemonic = " + mnemonic);
+
+        String password = "123456";
+        hdkResult = hdkClient.createMasterKeyEn(password, mnemonic);
+        String masterKey = hdkResult.masterKey;
+        System.out.println("masterKey = " + masterKey);
+
+        int purposeType = 44;
+        int assetType = 513866;
+        int account = 1;
+        int change = 0;
+        int addressIndex = 1000;
+
+        hdkResult = hdkClient.deriveExtendedKey(masterKey, purposeType, assetType, account, change, addressIndex);
+        String extendedPrivateKey = hdkResult.extendedPrivateKey;
+        String extendedPublicKey = hdkResult.extendedPublicKey;
+        System.out.println("extendedPrivateKey = " + extendedPrivateKey);
+        System.out.println("extendedPublicKey = " + extendedPublicKey);
     }
 }
