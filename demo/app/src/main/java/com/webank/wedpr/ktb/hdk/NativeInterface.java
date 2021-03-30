@@ -4,7 +4,7 @@ package com.webank.wedpr.ktb.hdk;
 
 import java.io.IOException;
 
-/** Native interface for Crypto client. */
+/** Native interface for HDK client. */
 public class NativeInterface {
 
   static {
