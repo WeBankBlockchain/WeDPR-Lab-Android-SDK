@@ -48,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
             VerifierClient verifierClient = new VerifierClient();
             scdDemo(issuerClient, userClient, verifierClient);
 
+            // KTB demo.
             HdkClient hdkClient = new HdkClient();
             KtbDemo(hdkClient);
         } catch (Exception e) {
@@ -280,11 +281,13 @@ public class MainActivity extends AppCompatActivity {
 
     private static void KtbDemo(HdkClient hdkClient)
             throws Exception {
+        System.out.println("\n*******\nKTB DEMO RUN\n*******");
+
         HdkResult hdkResult = hdkClient.createMnemonicEn(24);
         String mnemonic = hdkResult.mnemonic;
         System.out.println("mnemonic = " + mnemonic);
 
-        String password = "123456";
+        String password = "Do not use real password";
         hdkResult = hdkClient.createMasterKeyEn(password, mnemonic);
         String masterKey = hdkResult.masterKey;
         System.out.println("masterKey = " + masterKey);
@@ -294,8 +297,9 @@ public class MainActivity extends AppCompatActivity {
         int account = 1;
         int change = 0;
         int addressIndex = 1000;
-
-        hdkResult = hdkClient.deriveExtendedKey(masterKey, purposeType, assetType, account, change, addressIndex);
+        hdkResult =
+            hdkClient.deriveExtendedKey(
+                masterKey, purposeType, assetType, account, change, addressIndex);
         String extendedPrivateKey = hdkResult.extendedPrivateKey;
         String extendedPublicKey = hdkResult.extendedPublicKey;
         System.out.println("extendedPrivateKey = " + extendedPrivateKey);
